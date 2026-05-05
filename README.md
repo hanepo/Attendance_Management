@@ -134,8 +134,13 @@ For production, replace open test rules with rules that require authentication a
 ### 1. Clone / open the project
 
 ```bash
-cd "/path/to/Attendance management/attendance_app"
+git clone https://github.com/hanepo/Attendance_Management.git
+cd Attendance_Management
 ```
+
+**After cloning:** `google-services.json` and `GoogleService-Info.plist` are **not** in the repo (they are listed in `.gitignore` to avoid leaking Firebase credentials on a public GitHub project). Download them from your [Firebase Console](https://console.firebase.google.com/) and place them as described in [Firebase setup](#firebase-setup-required). If you use a different Firebase project than the one used to generate `lib/firebase_options.dart`, run `flutterfire configure` to regenerate that file.
+
+If you already have the project folder locally, open it from there instead of cloning.
 
 ### 2. Get dependencies
 
