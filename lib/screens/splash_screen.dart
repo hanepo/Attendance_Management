@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/encryption_service.dart';
-import '../services/face_service.dart';
+import '../services/kby_face_service.dart';
 import '../utils/constants.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _init() async {
     EncryptionService().init();
-    await FaceService().init();
+    await KbyFaceService().init();
     await AuthService().init();
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;

@@ -3,6 +3,7 @@ import '../../services/auth_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import 'face_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -132,6 +133,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _login,
                   loading: _loading,
                   icon: Icons.login,
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const FaceLoginScreen()),
+                  ),
+                  icon: const Icon(Icons.face),
+                  label: const Text('Login with Face'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(

@@ -51,6 +51,8 @@ dependencies:
   tflite_flutter: ^0.12.1
   image: ^4.8.0
   image_picker: ^1.1.2
+  facesdk_plugin:
+    path: ./facesdk_plugin
 
 dev_dependencies:
   flutter_test:

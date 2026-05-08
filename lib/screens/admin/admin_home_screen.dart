@@ -75,6 +75,7 @@ class _DashboardTabState extends State<_DashboardTab> {
   int _totalStudents = 0;
   int _totalSessions = 0;
   int _todayAttendance = 0;
+  int _totalAttendance = 0;
   bool _loading = true;
 
   @override
@@ -90,12 +91,14 @@ class _DashboardTabState extends State<_DashboardTab> {
     final students = allUsers.where((u) => u.role != 'admin').length;
     int sessions = 0;
     int todayAtt = 0;
+    int totalAtt = 0;
     final today = DateTime.now();
     for (final cls in allClasses) {
       final s = await _svc.getClassSessions(cls.classId);
       sessions += s.length;
       for (final session in s) {
         final att = await _db.getAttendanceBySession(session.sessionId);
+        totalAtt += att.length;
         todayAtt += att
             .where((a) =>
                 a.timestamp.year == today.year &&
@@ -110,6 +113,7 @@ class _DashboardTabState extends State<_DashboardTab> {
         _totalStudents = students;
         _totalSessions = sessions;
         _todayAttendance = todayAtt;
+        _totalAttendance = totalAtt;
         _loading = false;
       });
     }
@@ -225,6 +229,16 @@ class _DashboardTabState extends State<_DashboardTab> {
                                   color: AppColors.success),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          _StatCard(
+                            label: 'Overall Attendance Rate',
+                            value: _totalStudents > 0 && _totalSessions > 0
+                                ? '${(_totalAttendance * 100 ~/ (_totalStudents * _totalSessions))}%'
+                                : '0%',
+                            icon: Icons.bar_chart,
+                            color: const Color(0xFFE65100),
+                            fullWidth: true,
+                          ),
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
                             onPressed: () => Navigator.push(
@@ -265,12 +279,14 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final bool fullWidth;
 
   const _StatCard(
       {required this.label,
       required this.value,
       required this.icon,
-      required this.color});
+      required this.color,
+      this.fullWidth = false});
 
   @override
   Widget build(BuildContext context) {

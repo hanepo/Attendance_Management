@@ -24,6 +24,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   List<AttendanceModel> _recentAttendance = [];
   bool _loading = true;
   int _currentTab = 0;
+  int _attendanceCount = 0;
+  int _totalSessions = 0;
+  Map<String, String> _classNames = {};
+  Map<String, int> _classSessions = {};
+  Map<String, int> _classAttendance = {};
 
   @override
   void initState() {
@@ -36,10 +41,31 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     final uid = _auth.currentUser!.uid;
     final classes = await _svc.getUserClasses(uid);
     final attendance = await _svc.getUserAttendance(uid);
+
+    final classNames = <String, String>{};
+    final classSessions = <String, int>{};
+    int totalSessions = 0;
+    for (final cls in classes) {
+      classNames[cls.classId] = cls.className;
+      final sessions = await _svc.getClassSessions(cls.classId);
+      classSessions[cls.classId] = sessions.length;
+      totalSessions += sessions.length;
+    }
+
+    final classAttendance = <String, int>{};
+    for (final rec in attendance) {
+      classAttendance[rec.classId] = (classAttendance[rec.classId] ?? 0) + 1;
+    }
+
     if (mounted) {
       setState(() {
         _classes = classes;
         _recentAttendance = attendance.take(20).toList();
+        _attendanceCount = attendance.length;
+        _totalSessions = totalSessions;
+        _classNames = classNames;
+        _classSessions = classSessions;
+        _classAttendance = classAttendance;
         _loading = false;
       });
     }
@@ -192,8 +218,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                               Expanded(
                                 child: _InfoChip(
                                   label: 'Attendance',
-                                  value: _recentAttendance.length.toString(),
+                                  value: _attendanceCount.toString(),
                                   icon: Icons.check_circle_outline,
+                                  percentage: _totalSessions > 0
+                                      ? (_attendanceCount * 100 ~/ _totalSessions)
+                                      : null,
                                 ),
                               ),
                             ],
@@ -288,9 +317,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     const SizedBox(height: 12),
 
                     if (_currentTab == 0)
-                      _ClassesTab(classes: _classes)
+                      _ClassesTab(
+                        classes: _classes,
+                        classSessions: _classSessions,
+                        classAttendance: _classAttendance,
+                      )
                     else
-                      _AttendanceTab(records: _recentAttendance),
+                      _AttendanceTab(
+                          records: _recentAttendance,
+                          classNames: _classNames),
 
                     const SizedBox(height: 24),
                   ],
@@ -335,9 +370,13 @@ class _InfoChip extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final int? percentage;
 
   const _InfoChip(
-      {required this.label, required this.value, required this.icon});
+      {required this.label,
+      required this.value,
+      required this.icon,
+      this.percentage});
 
   @override
   Widget build(BuildContext context) {
@@ -351,22 +390,37 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.white70, size: 20),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      percentage != null ? '$percentage%' : value,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (percentage != null) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '($value)',
+                        style: const TextStyle(color: Colors.white60, fontSize: 11),
+                      ),
+                    ],
+                  ],
                 ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(color: Colors.white70, fontSize: 11),
-              ),
-            ],
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -508,7 +562,13 @@ class _TabButton extends StatelessWidget {
 
 class _ClassesTab extends StatelessWidget {
   final List<ClassModel> classes;
-  const _ClassesTab({required this.classes});
+  final Map<String, int> classSessions;
+  final Map<String, int> classAttendance;
+  const _ClassesTab({
+    required this.classes,
+    required this.classSessions,
+    required this.classAttendance,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -537,6 +597,16 @@ class _ClassesTab extends StatelessWidget {
       separatorBuilder: (ctx, i) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
         final cls = classes[i];
+        final sessions = classSessions[cls.classId] ?? 0;
+        final attended = classAttendance[cls.classId] ?? 0;
+        final pct = sessions > 0 ? (attended * 100 ~/ sessions) : null;
+        final pctColor = pct == null
+            ? AppColors.textSecondary
+            : pct >= 80
+                ? AppColors.success
+                : pct >= 60
+                    ? Colors.orange
+                    : AppColors.error;
         return Card(
           elevation: 1,
           shape:
@@ -559,6 +629,27 @@ class _ClassesTab extends StatelessWidget {
               cls.adminName,
               style: const TextStyle(fontSize: 12),
             ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  pct != null ? '$pct%' : '--',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: pctColor,
+                  ),
+                ),
+                Text(
+                  '$attended/$sessions',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -568,7 +659,8 @@ class _ClassesTab extends StatelessWidget {
 
 class _AttendanceTab extends StatelessWidget {
   final List<AttendanceModel> records;
-  const _AttendanceTab({required this.records});
+  final Map<String, String> classNames;
+  const _AttendanceTab({required this.records, required this.classNames});
 
   @override
   Widget build(BuildContext context) {
@@ -609,7 +701,7 @@ class _AttendanceTab extends StatelessWidget {
               child: Icon(Icons.check, color: AppColors.success),
             ),
             title: Text(
-              rec.userName,
+              classNames[rec.classId] ?? 'Unknown Class',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(

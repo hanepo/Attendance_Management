@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/class_model.dart';
 import '../../models/enrollment_model.dart';
 import '../../models/session_model.dart';
@@ -230,36 +229,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
         SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating));
   }
 
-  void _showQRDialog(SessionModel session) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(session.sessionName),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            QrImageView(data: session.qrData, version: QrVersions.auto, size: 220),
-            const SizedBox(height: 10),
-            Text(
-              session.isCurrentlyActive ? 'Session is ACTIVE' : 'Session is INACTIVE',
-              style: TextStyle(
-                color: session.isCurrentlyActive
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close')),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final cls = widget.classModel;
@@ -431,44 +400,24 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
                         fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showQRDialog(session),
-                          icon: const Icon(Icons.qr_code, size: 16),
-                          label: const Text('QR Code'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.primary),
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => ViewAttendanceScreen(
-                                        classModel: widget.classModel,
-                                        sessionId: session.sessionId,
-                                      ))),
-                          icon: const Icon(Icons.list_alt, size: 16),
-                          label: const Text('Attendance'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            side: const BorderSide(color: AppColors.accent),
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                    ],
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => ViewAttendanceScreen(
+                                  classModel: widget.classModel,
+                                  sessionId: session.sessionId,
+                                ))),
+                    icon: const Icon(Icons.list_alt, size: 16),
+                    label: const Text('Attendance'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.accent,
+                      side: const BorderSide(color: AppColors.accent),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      minimumSize: const Size(double.infinity, 36),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
                 ],
               ),

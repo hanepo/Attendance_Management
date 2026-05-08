@@ -3,6 +3,7 @@ import '../../services/auth_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../user/face_register_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -53,8 +54,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pushNamedAndRemoveUntil(
           context, AppRoutes.adminHome, (_) => false);
     } else {
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRoutes.userHome, (_) => false);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+            builder: (_) => const FaceRegisterScreen(redirectToHome: true)),
+        (_) => false,
+      );
     }
   }
 

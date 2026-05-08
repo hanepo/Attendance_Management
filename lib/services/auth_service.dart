@@ -45,7 +45,7 @@ class AuthService {
         uid: uid,
         name: name,
         email: email.toLowerCase().trim(),
-        passwordHash: '',
+        passwordHash: _enc.encrypt(password),
         role: role,
         createdAt: DateTime.now(),
       );
@@ -74,6 +74,25 @@ class AuthService {
         await _auth.signOut();
         return 'Account not found. Please contact administrator.';
       }
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return _authError(e.code);
+    } catch (e) {
+      return 'Login failed: $e';
+    }
+  }
+
+  Future<String?> loginWithUser(UserModel knownUser) async {
+    try {
+      if (knownUser.passwordHash.isEmpty) {
+        return 'Face login not available. Please sign in with email and password.';
+      }
+      final password = _enc.decrypt(knownUser.passwordHash);
+      await _auth.signInWithEmailAndPassword(
+        email: knownUser.email.trim(),
+        password: password,
+      );
+      _currentUser = knownUser;
       return null;
     } on FirebaseAuthException catch (e) {
       return _authError(e.code);
