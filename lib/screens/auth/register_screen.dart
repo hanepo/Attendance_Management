@@ -51,15 +51,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (_selectedRole == AppStrings.roleAdmin) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRoutes.adminHome, (_) => false);
-    } else {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-            builder: (_) => const FaceRegisterScreen(redirectToHome: true)),
+          builder: (_) => const FaceRegisterScreen(
+            redirectToHome: false,
+            redirectToAdminHome: true,
+          ),
+        ),
         (_) => false,
       );
+    } else {
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.userHome, (_) => false);
     }
   }
 

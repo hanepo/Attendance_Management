@@ -2,12 +2,19 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/auth_service.dart';
+import '../../services/blink_liveness_service.dart';
+import '../../services/face_service.dart';
 import '../../services/kby_face_service.dart';
 import '../../utils/constants.dart';
 
 class FaceRegisterScreen extends StatefulWidget {
   final bool redirectToHome;
-  const FaceRegisterScreen({super.key, this.redirectToHome = false});
+  final bool redirectToAdminHome;
+  const FaceRegisterScreen({
+    super.key,
+    this.redirectToHome = false,
+    this.redirectToAdminHome = false,
+  });
 
   @override
   State<FaceRegisterScreen> createState() => _FaceRegisterScreenState();
@@ -25,7 +32,41 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _primeFaceSdk();
     _startCamera();
+  }
+
+  Future<void> _primeFaceSdk() async {
+    await KbyFaceService().init();
+    if (!mounted) return;
+    if (KbyFaceService().isInitialized) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Face engine not available'),
+          content: SingleChildScrollView(
+            child: Text(KbyFaceService().describeInitFailure()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                KbyFaceService().resetSdkState();
+                Navigator.pop(ctx);
+                _primeFaceSdk();
+              },
+              child: const Text('Retry'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Dismiss'),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   @override
@@ -61,7 +102,12 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
-      final ctrl = CameraController(front, ResolutionPreset.high, enableAudio: false);
+      final ctrl = CameraController(
+        front,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: FaceService.cameraImageFormat,
+      );
       await ctrl.initialize();
       if (!mounted) { ctrl.dispose(); return; }
       _ctrl = ctrl;
@@ -76,32 +122,124 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
 
   Future<void> _capture() async {
     if (_processing || !_cameraReady || _ctrl == null) return;
+    await KbyFaceService().init();
+    if (!KbyFaceService().isInitialized) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Face engine'),
+          content: Text(KbyFaceService().describeInitFailure()),
+          actions: [
+            TextButton(
+              onPressed: () {
+                KbyFaceService().resetSdkState();
+                Navigator.pop(ctx);
+              },
+              child: const Text('Reset'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     setState(() {
       _processing = true;
-      _status = 'Capturing face...';
+      _status = 'Liveness: follow the on-screen steps';
     });
     try {
+      final blinkOk = await BlinkLivenessService().runBlinkChallenge(
+        camera: _ctrl!,
+        onStatus: (s) {
+          if (mounted) setState(() => _status = s);
+        },
+      );
+      if (!blinkOk) {
+        if (!mounted) return;
+        setState(() {
+          _processing = false;
+          _status = 'Position your face in the oval and tap Capture';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Blink liveness check failed or timed out. Please try again.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _status = 'Capturing face...');
       final file = await _ctrl!.takePicture();
       setState(() => _status = 'Extracting face data...');
-      final templates = await KbyFaceService().extractTemplates(file.path);
-      if (templates == null) {
+      final face = await KbyFaceService().extractFace(file.path);
+      if (face == null) {
         final sdkReady = KbyFaceService().isInitialized;
         setState(() {
           _processing = false;
           _status = sdkReady
               ? 'No face detected. Please centre your face and try again.'
-              : 'Face SDK not ready. Please restart the app and try again.';
+              : 'Face SDK not ready — see message below.';
         });
+        if (!sdkReady && mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Face engine'),
+              content: SingleChildScrollView(
+                child: Text(KbyFaceService().describeInitFailure()),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    KbyFaceService().resetSdkState();
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Reset & try again'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+      if (!face.passesSdkLiveness) {
+        if (!mounted) return;
+        setState(() {
+          _processing = false;
+          _status =
+              'Face liveness score too low. Use a live face (not a photo) and retry.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Passive liveness failed (score ${face.liveness.toStringAsFixed(2)}). '
+              'Try better lighting and face the camera directly.',
+            ),
+          ),
+        );
         return;
       }
       setState(() => _status = 'Saving face data...');
-      final faceJson = KbyFaceService.templatesToJson(templates);
+      final faceJson = KbyFaceService.templatesToJson(face.templates);
       await AuthService().updateFaceData(faceJson);
       if (!mounted) return;
       setState(() { _processing = false; _status = 'Face registered!'; });
       await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
-      if (widget.redirectToHome) {
+      if (widget.redirectToAdminHome) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminHome, (_) => false);
+      } else if (widget.redirectToHome) {
         Navigator.pushNamedAndRemoveUntil(context, AppRoutes.userHome, (_) => false);
       } else {
         Navigator.pop(context, true);
@@ -125,7 +263,7 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          if (widget.redirectToHome)
+          if (widget.redirectToHome && !widget.redirectToAdminHome)
             TextButton(
               onPressed: () => Navigator.pushNamedAndRemoveUntil(
                   context, AppRoutes.userHome, (_) => false),

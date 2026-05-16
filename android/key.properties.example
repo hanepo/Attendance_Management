@@ -1,0 +1,12 @@
+# Copy to android/key.properties and fill in (key.properties is gitignored).
+# Then build release APK — MobSF: avoid shipping with the debug signing certificate.
+#
+# Generate a keystore once:
+#   keytool -genkey -v -keystore release-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Place release-keystore.jks in this android/ directory (or set storeFile to an absolute path).
+
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=release-keystore.jks

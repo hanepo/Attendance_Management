@@ -18,8 +18,6 @@ class AppStrings {
   static const appName = 'Secure Attendance';
   static const roleAdmin = 'admin';
   static const roleUser = 'user';
-  static const encryptionKey = 'AttendanceSecure2024KeyAES256!!!';
-  static const encryptionIV = 'AttendIV2024!!!!';
 }
 
 class AppRoutes {

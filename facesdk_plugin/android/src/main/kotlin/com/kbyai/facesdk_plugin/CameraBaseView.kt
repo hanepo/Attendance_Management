@@ -13,7 +13,6 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
-import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileNotFoundException
@@ -102,7 +101,7 @@ class CameraBaseView(activity: Activity): PluginRegistry.RequestPermissionsResul
             .lensPosition(front())
             .frameProcessor(SampleFrameProcessor())
             .previewResolution { Resolution(1280, 720) }
-            .cameraErrorCallback{error -> Log.e("TestEngine", "error: " + error)}
+            .cameraErrorCallback { /* avoid logging camera errors in release (MobSF CWE-532) */ }
             .build()
             
     }

@@ -3,7 +3,8 @@ import '../../services/auth_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
-import 'face_login_screen.dart';
+import '../admin/admin_face_2fa_screen.dart';
+import '../user/face_register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,11 +41,31 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     final user = AuthService().currentUser!;
     if (user.role == AppStrings.roleAdmin) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRoutes.adminHome, (_) => false);
+      _navigateAdmin(user);
     } else {
       Navigator.pushNamedAndRemoveUntil(
           context, AppRoutes.userHome, (_) => false);
+    }
+  }
+
+  void _navigateAdmin(dynamic user) {
+    final hasFace =
+        user.faceData != null && (user.faceData as String).isNotEmpty;
+    if (!hasFace) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              const FaceRegisterScreen(redirectToHome: false, redirectToAdminHome: true),
+        ),
+        (_) => false,
+      );
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminFace2faScreen()),
+        (_) => false,
+      );
     }
   }
 
@@ -133,23 +154,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _login,
                   loading: _loading,
                   icon: Icons.login,
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const FaceLoginScreen()),
-                  ),
-                  icon: const Icon(Icons.face),
-                  label: const Text('Login with Face'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(

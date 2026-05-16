@@ -52,6 +52,7 @@ class FaceService {
     _detector ??= FaceDetector(
       options: FaceDetectorOptions(
         enableLandmarks: true,
+        enableClassification: true,
         performanceMode: FaceDetectorMode.fast,
       ),
     );

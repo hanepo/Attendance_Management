@@ -1,38 +1,35 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/blink_liveness_service.dart';
-import '../../services/database_service.dart';
 import '../../services/encryption_service.dart';
 import '../../services/face_service.dart';
 import '../../services/kby_face_service.dart';
 import '../../utils/constants.dart';
 
-class FaceLoginScreen extends StatefulWidget {
-  const FaceLoginScreen({super.key});
+/// Face verification 2FA gate for admin login.
+/// On success → navigates to admin home and clears the stack.
+/// On failure or cancel → logs out and returns to login.
+class AdminFace2faScreen extends StatefulWidget {
+  const AdminFace2faScreen({super.key});
 
   @override
-  State<FaceLoginScreen> createState() => _FaceLoginScreenState();
+  State<AdminFace2faScreen> createState() => _AdminFace2faScreenState();
 }
 
-class _FaceLoginScreenState extends State<FaceLoginScreen>
+class _AdminFace2faScreenState extends State<AdminFace2faScreen>
     with WidgetsBindingObserver {
   CameraController? _ctrl;
   bool _cameraReady = false;
   bool _processing = false;
-  String _status = 'Position your face in the oval and tap Scan';
+  String _status = 'Position your face in the oval and tap Verify';
   String? _cameraError;
-
-  List<UserModel> _usersWithFaces = [];
-  bool _usersLoaded = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadUsers();
     _startCamera();
   }
 
@@ -51,12 +48,6 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
     } else if (state == AppLifecycleState.resumed) {
       _startCamera();
     }
-  }
-
-  Future<void> _loadUsers() async {
-    final all = await DatabaseService().getAllUsers();
-    final withFaces = all.where((u) => u.faceData != null && u.faceData!.isNotEmpty).toList();
-    if (mounted) setState(() { _usersWithFaces = withFaces; _usersLoaded = true; });
   }
 
   Future<void> _startCamera() async {
@@ -90,32 +81,29 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
     }
   }
 
-  Future<void> _captureAndLogin() async {
+  Future<void> _verify() async {
     if (_processing || !_cameraReady || _ctrl == null) return;
-    if (!_usersLoaded) {
-      if (mounted) setState(() => _status = 'Still loading users, please wait...');
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-      _status = 'Liveness: follow the on-screen steps';
-    });
+    setState(() { _processing = true; _status = 'Preparing...'; });
 
     try {
-      if (_usersWithFaces.isEmpty) {
+      final user = AuthService().currentUser!;
+      final decrypted = EncryptionService().decryptFaceData(user.faceData);
+      if (decrypted == null || decrypted.isEmpty) {
         if (!mounted) return;
-        await _showAlert(
-          'No accounts with registered faces are available for face login.',
-        );
-        if (mounted) {
-          setState(() {
-            _processing = false;
-            _status = 'Position your face in the oval and tap Scan';
-          });
-        }
+        await _showAlert('Face data corrupted. Please re-register your face.');
+        await _logout();
         return;
       }
+      final storedTemplates = KbyFaceService.templatesFromJson(decrypted);
+      if (storedTemplates == null) {
+        if (!mounted) return;
+        await _showAlert('Please re-register your face (format updated).');
+        await _logout();
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _status = 'Liveness: follow the on-screen steps');
 
       final blinkOk = await BlinkLivenessService().runBlinkChallenge(
         camera: _ctrl!,
@@ -125,13 +113,11 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
       );
       if (!blinkOk) {
         if (!mounted) return;
-        await _showAlert(
-          'Blink liveness check failed or timed out. Please try again.',
-        );
+        await _showAlert('Blink liveness failed or timed out. Please try again.');
         if (mounted) {
           setState(() {
             _processing = false;
-            _status = 'Position your face in the oval and tap Scan';
+            _status = 'Position your face in the oval and tap Verify';
           });
         }
         return;
@@ -144,95 +130,76 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
 
       final currentFace = await KbyFaceService().extractFace(file.path);
       if (currentFace == null) {
-        if (mounted) setState(() { _processing = false; _status = 'No face detected. Please centre your face and try again.'; });
+        if (mounted) {
+          setState(() {
+            _processing = false;
+            _status = 'No face detected. Please centre your face and try again.';
+          });
+        }
         return;
       }
       if (!currentFace.passesSdkLiveness) {
         if (!mounted) return;
         await _showAlert(
           'Passive liveness failed (score ${currentFace.liveness.toStringAsFixed(2)}). '
-          'Use your real face with good lighting and try again.',
+          'Use your real face with good lighting.',
         );
         if (mounted) {
           setState(() {
             _processing = false;
-            _status = 'Position your face in the oval and tap Scan';
+            _status = 'Position your face in the oval and tap Verify';
           });
         }
         return;
       }
 
-      final currentTemplates = currentFace.templates;
+      if (mounted) setState(() => _status = 'Matching face...');
+      final similarity = await KbyFaceService().compareFaces(
+        storedTemplates,
+        currentFace.templates,
+      );
 
-      if (mounted) setState(() => _status = 'Searching for match...');
-
-      final enc = EncryptionService();
-      double bestScore = -1.0;
-      double secondBest = -1.0;
-      UserModel? matchedUser;
-
-      for (final user in _usersWithFaces) {
-        final decrypted = enc.decryptFaceData(user.faceData);
-        if (decrypted == null || decrypted.isEmpty) continue;
-
-        final storedTemplates = KbyFaceService.templatesFromJson(decrypted);
-        if (storedTemplates == null) continue;
-
-        final similarity =
-            await KbyFaceService().compareFaces(storedTemplates, currentTemplates);
-        if (similarity > bestScore) {
-          secondBest = bestScore;
-          bestScore = similarity;
-          matchedUser = user;
-        } else if (similarity > secondBest) {
-          secondBest = similarity;
-        }
-      }
-
-      if (matchedUser == null || bestScore < KbyFaceService.matchThreshold) {
-        if (!mounted) return;
-        await _showAlert('Face not recognised.\n\nNo matching account found. Please login with email and password.');
-        if (mounted) setState(() { _processing = false; _status = 'Position your face in the oval and tap Scan'; });
-        return;
-      }
-
-      final ambiguous = secondBest >= 0 &&
-          (bestScore - secondBest) < KbyFaceService.multiMatchMargin &&
-          secondBest >= KbyFaceService.matchThreshold * 0.88;
-      if (ambiguous) {
+      if (similarity < KbyFaceService.matchThreshold) {
         if (!mounted) return;
         await _showAlert(
-          'Face match is ambiguous (several accounts look equally similar).\n\n'
-          'Please sign in with email and password.',
+          'Face verification failed.\n\n'
+          'Your face does not match the registered admin face.',
         );
         if (mounted) {
           setState(() {
             _processing = false;
-            _status = 'Position your face in the oval and tap Scan';
+            _status = 'Position your face in the oval and tap Verify';
           });
         }
         return;
       }
 
-      if (mounted) setState(() => _status = 'Match found! Logging in...');
-      final error = await AuthService().loginWithUser(matchedUser);
-
       if (!mounted) return;
-      if (error != null) {
-        await _showAlert(error);
-        if (mounted) setState(() { _processing = false; _status = 'Position your face in the oval and tap Scan'; });
-        return;
-      }
-
       Navigator.pushNamedAndRemoveUntil(
         context,
-        matchedUser.role == AppStrings.roleAdmin ? AppRoutes.adminHome : AppRoutes.userHome,
+        AppRoutes.adminHome,
         (_) => false,
       );
     } catch (e) {
       if (!mounted) return;
       await _showAlert('Something went wrong. Please try again.');
-      if (mounted) setState(() { _processing = false; _status = 'Position your face in the oval and tap Scan'; });
+      if (mounted) {
+        setState(() {
+          _processing = false;
+          _status = 'Position your face in the oval and tap Verify';
+        });
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    await AuthService().logout();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        (_) => false,
+      );
     }
   }
 
@@ -259,15 +226,24 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Login with Face'),
+        title: const Text('Admin Face Verification'),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
+        actions: [
+          TextButton(
+            onPressed: _logout,
+            child: const Text('Cancel & Logout',
+                style: TextStyle(color: Colors.white70)),
+          ),
+        ],
       ),
       body: _cameraError != null
           ? _buildError()
           : !_cameraReady
-              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white))
               : _buildCamera(),
     );
   }
@@ -300,6 +276,28 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
           CustomPaint(
             painter: _OvalPainter(),
             child: const SizedBox.expand(),
+          ),
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                '2FA: Verify your identity to continue',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           ),
           if (_processing)
             Container(
@@ -342,35 +340,30 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
                 child: Column(
                   children: [
                     Text(
-                      _usersLoaded ? _status : 'Loading users...',
+                      _status,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 14),
                     ),
                     const SizedBox(height: 24),
                     GestureDetector(
-                      onTap: _usersLoaded ? _captureAndLogin : null,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                      onTap: _verify,
+                      child: Container(
                         width: 72,
                         height: 72,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _usersLoaded ? AppColors.primary : Colors.grey[700],
-                          boxShadow: _usersLoaded
-                              ? [BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.5),
-                                  blurRadius: 16,
-                                  spreadRadius: 2,
-                                )]
-                              : [],
+                          color: AppColors.primary,
                         ),
-                        child: const Icon(Icons.face, color: Colors.white, size: 36),
+                        child: const Icon(Icons.face,
+                            color: Colors.white, size: 36),
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      _usersLoaded ? 'Tap to login with your face' : 'Loading...',
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    const Text(
+                      'Tap to verify your face',
+                      style:
+                          TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                   ],
                 ),

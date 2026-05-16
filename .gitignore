@@ -44,6 +44,14 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Release keystore secrets (MobSF: do not commit signing passwords)
+android/key.properties
+android/*.jks
+android/*.keystore
+
+# Local compile-time AES secrets (generated; never commit)
+dart_define.secrets.json
+
 # Firebase secrets (never commit real keys — use Firebase Console downloads + README setup)
 **/google-services.json
 **/GoogleService-Info.plist

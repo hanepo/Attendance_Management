@@ -1,8 +1,25 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:facesdk_plugin/facesdk_plugin.dart';
 import 'package:image/image.dart' as img;
+
+/// One detected face from the KBY SDK, including passive liveness score.
+class KbyFaceExtraction {
+  KbyFaceExtraction({
+    required this.templates,
+    required this.liveness,
+  });
+
+  final Uint8List templates;
+
+  /// Vendor-reported score; higher typically means more likely a live face.
+  final double liveness;
+
+  bool get passesSdkLiveness =>
+      liveness >= KbyFaceService.minSdkLivenessScore;
+}
 
 class KbyFaceService {
   static final KbyFaceService _instance = KbyFaceService._internal();
@@ -12,44 +29,136 @@ class KbyFaceService {
   final _plugin = FacesdkPlugin();
   bool _initialized = false;
 
-  static const _androidLicense =
+  /// Tune with real devices; vendor scores are usually in \[0, 1\].
+  static const double minSdkLivenessScore = 0.58;
+
+  static const double matchThreshold = 0.8;
+  static const double multiMatchMargin = 0.06;
+
+  static const String _embeddedAndroidLicense =
       "PjnUMBHfBhtT/oa8ySF6mwinqAj2oBls4vSsDmsdrpL/xHwPLtq9Dll/4IIe2KIkXQEh81/21yQhK"
       "AUQOmCvuuNcaZX+DS/EBhinprH+Y+XBzdGz2KWKEZjeDnhoSo8ql1CDDmMiCdRleZ7PbcPv10/dkdI"
       "mwGLFerErQxL/qKIz+8CQqOryw/7RjpNgkbpufY+Nd635HN3dbG4Z+AKdpsl2hB+hl/16O1IhQiGia"
       "4V2+1q9PsFfj6HFST+CQD17kXfsXkoQzMsFwQn4BSuyiiPUdHfJ+EFYMoeF96Jhqfe1CH3af41l0wK"
       "LNqXthBE24m96v06lDFPXkxDOCZCzug==";
 
-  static const _iosLicense =
+  static const String _embeddedIosLicense =
       "LvqLS/kUqek3yNzQYaskd7H2oQZeZ/9msTJ16au/DAz0ZcDtnJUqlY6Du5YffkGKZ2oWlCrE8JBJfb"
       "rVcPvchPnZv6ZDOSZ9R1JCg+KlmyCQ2s6Xre6nhcjoAjvKbVhY3wFpwWOeKuvsCzv6hmKf5YBUMa6I"
       "yTwcqsoCKbcVq5mJDWbWpQXwKOiFXwhmyXHBruWzI1Jd6i6cNzYRixgqLWi1sS3Kak5EiHhc91TKPd"
       "LmZkLQQwWxr2OFSS8s3MRhrooAxxRU7XVglU+cg7tpqjvMcUSfbcLE8OYCV8DDIZfbBpEp5y1YN/gg"
       "OpX04tojhkSIhX9l5MRTiZfMdovaZg==";
 
-  static const double matchThreshold = 0.8;
+  static String _licenseAndroid() {
+    const fromEnv = String.fromEnvironment(
+      'KBY_LICENSE_ANDROID',
+      defaultValue: '',
+    );
+    if (fromEnv.isNotEmpty) return fromEnv;
+    return _embeddedAndroidLicense;
+  }
 
-  /// Minimum gap between the best and second-best similarity during multi-user
-  /// identification (face login). Stops the wrong account winning when several
-  /// templates score artificially high or look alike.
-  static const double multiMatchMargin = 0.06;
+  static String _licenseIos() {
+    const fromEnv = String.fromEnvironment(
+      'KBY_LICENSE_IOS',
+      defaultValue: '',
+    );
+    if (fromEnv.isNotEmpty) return fromEnv;
+    return _embeddedIosLicense;
+  }
 
   bool get isInitialized => _initialized;
 
-  Future<void> init() async {
-    if (_initialized) return;
-    try {
-      final license = Platform.isAndroid ? _androidLicense : _iosLicense;
-      final activated = await _plugin.setActivation(license) ?? -1;
-      if (activated == 0) {
-        final initResult = await _plugin.init() ?? -1;
-        _initialized = initResult == 0;
-      }
-    } catch (_) {}
+  /// Last native return codes (for diagnostics when [isInitialized] is false).
+  int? lastActivationReturn;
+  int? lastInitReturn;
+  String? lastInitException;
+
+  /// Call before [init] to retry after a failure (e.g. engine not attached yet).
+  void resetSdkState() {
+    _initialized = false;
+    lastActivationReturn = null;
+    lastInitReturn = null;
+    lastInitException = null;
   }
 
-  /// Bakes EXIF orientation into the image file so the SDK sees an upright face.
-  /// Front cameras store raw sensor data (landscape) with an EXIF tag — the SDK
-  /// ignores that tag and sees a rotated image, causing detection to fail.
+  /// Maps [FacesdkPlugin.setActivation] return codes (see vendor `SDK_ERROR`).
+  static const Map<int, String> activationErrorDescriptions = {
+    -1: 'Invalid or corrupt license key.',
+    -2:
+        'License does not match this app’s package name and/or signing '
+        'certificate (typical when the APK is release-signed with your own '
+        'keystore while the bundled license was issued for debug signing).',
+    -3: 'License has expired.',
+    -4: 'SDK not activated.',
+    -5: 'SDK initialization error.',
+  };
+
+  /// Human-readable reason the SDK did not start (release signing / license, etc.).
+  String describeInitFailure() {
+    if (_initialized) return '';
+    final a = lastActivationReturn;
+    final i = lastInitReturn;
+    final buf = StringBuffer()
+      ..writeln('The face engine did not start on this install.');
+    if (a != null && a != 0) {
+      buf.writeln('Activation step returned code: $a');
+      final detail = activationErrorDescriptions[a];
+      if (detail != null) {
+        buf.writeln(detail);
+      }
+    }
+    if (i != null && i != 0) {
+      buf.writeln('Init step returned code: $i');
+    }
+    if (lastInitException != null && lastInitException!.isNotEmpty) {
+      buf.writeln('Error: $lastInitException');
+    }
+    buf.writeln();
+    if (a == -2) {
+      buf.writeln(
+        'Fix options:\n'
+        '• Client demo: build release **without** android/key.properties so the '
+        'APK stays **debug-signed** (same cert as flutter run), or\n'
+        '• Production: ask KBY AI for a license tied to applicationId '
+        'com.attendance.attendance_app and your **release** keystore SHA-1 '
+        '(or Play App Signing certificate), then rebuild with '
+        'KBY_LICENSE_ANDROID in --dart-define-from-file or --dart-define.',
+      );
+    } else {
+      buf.writeln(
+        'If activation failed: many trial licenses only allow one signature. '
+        'You may need a release license from the vendor, or pass '
+        'KBY_LICENSE_ANDROID when building.',
+      );
+    }
+    return buf.toString().trim();
+  }
+
+  Future<void> init() async {
+    if (_initialized) return;
+    lastInitException = null;
+    try {
+      final license = Platform.isAndroid ? _licenseAndroid() : _licenseIos();
+      final activated = await _plugin.setActivation(license) ?? -1;
+      lastActivationReturn = activated;
+      if (activated == 0) {
+        final initResult = await _plugin.init() ?? -1;
+        lastInitReturn = initResult;
+        _initialized = initResult == 0;
+        if (_initialized && Platform.isAndroid) {
+          try {
+            await _plugin.setParam({'check_liveness_level': 2});
+          } catch (e) {
+            lastInitException = e.toString();
+          }
+        }
+      }
+    } catch (e) {
+      lastInitException = e.toString();
+    }
+  }
+
   Future<void> _bakeOrientation(String imagePath) async {
     try {
       final file = File(imagePath);
@@ -61,22 +170,40 @@ class KbyFaceService {
     } catch (_) {}
   }
 
-  /// Extracts face templates from an image file path.
-  /// Returns null if no face detected or SDK not initialised.
-  Future<Uint8List?> extractTemplates(String imagePath) async {
+  Uint8List? _parseTemplates(Object? raw) {
+    if (raw is Uint8List) return raw;
+    if (raw is List) {
+      try {
+        return Uint8List.fromList(raw.cast<int>());
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Extracts templates and liveness from an image file path.
+  Future<KbyFaceExtraction?> extractFace(String imagePath) async {
     if (!_initialized) await init();
     if (!_initialized) return null;
     try {
       await _bakeOrientation(imagePath);
       final faces = await _plugin.extractFaces(imagePath);
       if (faces == null || (faces as List).isEmpty) return null;
-      return faces[0]['templates'] as Uint8List?;
+      final map = Map<String, dynamic>.from(faces[0] as Map);
+      final templates = _parseTemplates(map['templates']);
+      if (templates == null) return null;
+      final live = (map['liveness'] as num?)?.toDouble() ?? 0.0;
+      return KbyFaceExtraction(templates: templates, liveness: live);
     } catch (_) {
       return null;
     }
   }
 
-  /// Compares two face template byte arrays and returns a similarity score (0–1).
+  /// Backwards-compatible helper (no liveness check).
+  Future<Uint8List?> extractTemplates(String imagePath) async {
+    final r = await extractFace(imagePath);
+    return r?.templates;
+  }
+
   Future<double> compareFaces(Uint8List t1, Uint8List t2) async {
     try {
       return await _plugin.similarityCalculation(t1, t2) ?? 0.0;
@@ -85,7 +212,6 @@ class KbyFaceService {
     }
   }
 
-  /// Encodes templates to a JSON string suitable for storage via AuthService.updateFaceData().
   static String templatesToJson(Uint8List templates) {
     return jsonEncode({
       'method': 'kby',
@@ -93,8 +219,6 @@ class KbyFaceService {
     });
   }
 
-  /// Decodes templates from a JSON string returned by AuthService / decryptFaceData().
-  /// Returns null if the data is not KBY format.
   static Uint8List? templatesFromJson(String faceJson) {
     try {
       final data = jsonDecode(faceJson) as Map<String, dynamic>;

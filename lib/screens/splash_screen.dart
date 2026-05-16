@@ -3,6 +3,8 @@ import '../services/auth_service.dart';
 import '../services/encryption_service.dart';
 import '../services/kby_face_service.dart';
 import '../utils/constants.dart';
+import 'admin/admin_face_2fa_screen.dart';
+import 'user/face_register_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -44,7 +46,26 @@ class _SplashScreenState extends State<SplashScreen>
     if (user == null) {
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (user.role == AppStrings.roleAdmin) {
-      Navigator.pushReplacementNamed(context, AppRoutes.adminHome);
+      final hasFace =
+          user.faceData != null && user.faceData!.isNotEmpty;
+      if (!hasFace) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const FaceRegisterScreen(
+              redirectToHome: false,
+              redirectToAdminHome: true,
+            ),
+          ),
+          (_) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminFace2faScreen()),
+          (_) => false,
+        );
+      }
     } else {
       Navigator.pushReplacementNamed(context, AppRoutes.userHome);
     }

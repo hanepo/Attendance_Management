@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as enc;
-import '../utils/constants.dart';
+import '../config/app_secrets.dart';
 
 /// AES-256-CBC encryption with per-value random IV.
 /// Stored format: base64(iv) + ':' + base64(ciphertext)
@@ -15,8 +15,8 @@ class EncryptionService {
   late final enc.IV _legacyIv;
 
   void init() {
-    final keyBytes = utf8.encode(AppStrings.encryptionKey);
-    final ivBytes = utf8.encode(AppStrings.encryptionIV);
+    final keyBytes = utf8.encode(AppSecrets.aesKey);
+    final ivBytes = utf8.encode(AppSecrets.aesIv);
     _key = enc.Key(Uint8List.fromList(keyBytes.take(32).toList()));
     _legacyIv = enc.IV(Uint8List.fromList(ivBytes.take(16).toList()));
   }

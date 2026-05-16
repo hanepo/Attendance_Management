@@ -180,6 +180,10 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
+**Client handoff (simplest):** `flutter build apk --release` is enough — the app **bundles demo AES keys** when you do not pass `--dart-define`, so the APK starts and matches Firestore data encrypted with those same demo keys.
+
+**Stronger AES (optional):** pass **`ATTENDANCE_AES_KEY`** / **`ATTENDANCE_AES_IV`** at build time, or use **`dart_define.client.json`** (committed demo keys) / **`dart_define.secrets.json`** (gitignored, your own keys). See [Encryption (AES) explained](#encryption-aes-explained).
+
 Configure **release signing** in Android Studio / `key.properties`—do not ship with debug keys for production.
 
 ### iOS
@@ -225,7 +229,10 @@ Open `ios/Runner.xcworkspace` in Xcode, select a **Signing Team**, archive, and 
 | Admin UI | `lib/screens/admin/` |
 | Student UI | `lib/screens/user/` |
 | Auth UI | `lib/screens/auth/` |
-| App name, roles, **encryption key strings** | `lib/utils/constants.dart` |
+| App name, roles | `lib/utils/constants.dart` |
+| AES key / IV resolution (`--dart-define`, bundled demo fallback) | `lib/config/app_secrets.dart` |
+| Blink liveness (ML Kit) | `lib/services/blink_liveness_service.dart` |
+| KBY face templates + SDK liveness | `lib/services/kby_face_service.dart` |
 
 ---
 
@@ -249,20 +256,43 @@ Document field names match the app’s `toMap`/`fromMap` conventions (snake_case
 
 - **Algorithm:** **AES-256-CBC** (`encrypt` package).
 - **IV:** A new **random 16-byte IV** is generated for **each** encrypt call. Stored form: `base64(iv) : base64(ciphertext)`.
-- **Key source:** `AppStrings.encryptionKey` in `lib/utils/constants.dart` (must be **32 bytes** when UTF-8 encoded for AES-256).
+- **Key source:** `lib/config/app_secrets.dart`:
+  - If you pass **`ATTENDANCE_AES_KEY`** and **`ATTENDANCE_AES_IV`** at compile time (each **32** and **16** UTF‑8 bytes), those are used.
+  - Otherwise the app uses the **bundled demo key/IV** in **all** modes (including release), so **`flutter build apk --release`** works for client demos without extra flags.
+- **KBY Face SDK license (optional):** **`KBY_LICENSE_ANDROID`** / **`KBY_LICENSE_IOS`** override the bundled strings. Use a vendor-supplied license when your **release** APK is signed with a different keystore than the trial (activation **-2** = app ID / certificate mismatch; see [Troubleshooting](#troubleshooting)).
 
-> **Security warning for production:** Embedding a long-term AES key in source code is acceptable only for coursework or demos. For real deployments, use secure key distribution (e.g. per-user keys from a backend, Android Keystore / iOS Keychain, or KMS) and **never** commit production secrets to git.
+Example **custom** release build (your own keys):
+
+```bash
+flutter build apk --release \
+  --dart-define=ATTENDANCE_AES_KEY=YOUR_32_CHARACTER_SECRET_KEY! \
+  --dart-define=ATTENDANCE_AES_IV=YOUR_16_CHAR_IV!
+```
+
+**Using a JSON file:** committed **`dart_define.client.json`** contains the same demo key/IV for builds like:
+
+```bash
+flutter build apk --release --dart-define-from-file=dart_define.client.json
+```
+
+For **private** keys, use **`dart_define.secrets.json`** (gitignored — copy from `dart_define.secrets.json.example`).
+
+Changing the AES key makes existing Firestore ciphertext **undecryptable**; plan key rotation with care.
+
+> **Security warning for production:** Compile-time keys still ship inside the binary; a determined attacker can extract them. For high-sensitivity deployments, prefer **per-user keys** from a backend, **KMS**, or device-bound storage, and rely on **Firestore rules** and least-privilege access.
 
 ---
 
 ## Face recognition flow
 
-1. **Google ML Kit** finds a face in the **live camera** stream.  
-2. The app crops/normalizes the face region and runs **`mobilefacenet.tflite`** to produce a **192-dimensional embedding**.  
-3. On **register**, that embedding (as JSON) is **encrypted** and saved to Firestore.  
-4. On **verify**, a new embedding is compared to the stored one using **Euclidean distance** under a configured threshold.  
+Attendance uses the **KBY Face SDK** (`facesdk_plugin`): templates are extracted from a captured photo, **encrypted**, and stored in Firestore. Verification compares template similarity against a threshold.
 
-The app avoids relying on `takePicture()` for embedding on some devices; it uses **cached live frames** after a successful detection for more reliable iOS/Android behaviour.
+**Liveness (defence against static photos):**
+
+1. **Blink challenge (ML Kit):** before each capture, the user must complete an **eyes open → blink → eyes open** sequence using live camera frames (`BlinkLivenessService` + `FaceService` / ML Kit classification).  
+2. **Passive SDK liveness:** each extraction returns a **liveness score** from the native SDK; scores below `KbyFaceService.minSdkLivenessScore` are rejected. Android also sets **`check_liveness_level`** on the SDK when supported.
+
+`FaceService` + **MobileFaceNet** remain in the project for other / legacy flows; the primary student flows above use **KBY templates**.
 
 ---
 
@@ -280,12 +310,33 @@ The app avoids relying on `takePicture()` for embedding on some devices; it uses
 
 | Symptom | What to try |
 |---------|-------------|
-| Build fails on Android | Ensure `minSdk` is **23+** (Firebase Auth). `google-services.json` must be under `android/app/`. |
+| Build fails on Android | Ensure `google-services.json` is under `android/app/`. This project uses **minSdk 29** (Android 10+). |
 | iOS build / pod errors | `cd ios && pod install --repo-update`; open `.xcworkspace`; use a real device for camera. |
 | `flutter run` hangs on “Dart VM Service…” | Unlock the phone, trust the computer, disable VPN/proxy; rerun. Often succeeds on second run after install. |
 | Firestore “permission denied” | Check **Firestore rules** allow authenticated access for your test rules. |
 | Face not detected | Good light, face centred, remove coverings; grant camera permission in system Settings. |
+| Release build fails at startup with AES / `FlutterError` | Key/IV length must be **32** / **16** UTF‑8 bytes. If you passed `--dart-define`, fix lengths; otherwise the app uses bundled demo keys. |
+| Encrypted names look like garbage in the app | The APK was built with a **different AES key** than the Firestore data. Rebuild with the **same** key (default demo, or match your `dart_define` file). |
+| Passive liveness always fails | Try better lighting; tune `minSdkLivenessScore` in `kby_face_service.dart` after testing on target devices. |
+| Face SDK / dialog: **not ready**, **activation -2**, works in `flutter run` but not release APK | **-2** = vendor **SDK_LICENSE_APPID_ERROR** (license ≠ this app’s **package + signing cert**). Bundled KBY license matches **debug** signing. If `android/key.properties` exists, release uses your keystore → fail. **Demo:** remove/rename `key.properties`, rebuild (`build.gradle.kts` then signs release with debug keystore). **Production:** get a KBY license for `com.attendance.attendance_app` + your release SHA-1 (or Play App Signing cert), set **`KBY_LICENSE_ANDROID`** in `--dart-define` / define JSON. |
 | Wrong Firebase project / login fails | Verify `firebase_options.dart`, `google-services.json`, and `GoogleService-Info.plist` all belong to the **same** Firebase project. |
+
+---
+
+## MobSF-style Android hardening (applied in repo)
+
+The following mitigations address common **MobSF Static Analysis** findings for the Android build:
+
+| Finding (typical) | What we changed |
+|-------------------|-----------------|
+| `allowBackup` default true | `android:allowBackup="false"` in `AndroidManifest.xml` (no ADB backup of app data). |
+| Cleartext / network | `network_security_config.xml` + `usesCleartextTraffic="false"` (HTTPS-only expectation). |
+| Old `minSdk` | `minSdk = max(flutter.minSdkVersion, 29)` in `android/app/build.gradle.kts` (Android 10+). |
+| Debug signing in release | If `android/key.properties` exists (see `android/key.properties.example`), **release** builds use that keystore; otherwise they still use debug signing until you configure one. |
+| Merged permissions | `READ_PHONE_STATE` and `RECORD_AUDIO` removed via `tools:node="remove"` when merged from dependencies (not used by this app). |
+| Sensitive logging | Removed license `print` in `facesdk_plugin` iOS; removed camera error `Log` in Android plugin. |
+
+**Still vendor / framework noise in MobSF:** Firebase `exported` activities, MD5/SHA-1 in third-party libs, SQLite/RNG/clipboard flags from Flutter or ML Kit — those are not realistically “fixed” inside your app code; document as **accepted risk** or dependency limitation for your report.
 
 ---
 
