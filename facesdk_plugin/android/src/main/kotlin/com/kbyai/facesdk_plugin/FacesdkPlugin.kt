@@ -51,12 +51,21 @@ class FacesdkPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
     if (call.method == "getPlatformVersion") {
       result.success("Android ${android.os.Build.VERSION.RELEASE}")
     } else if (call.method == "setActivation") {
-      val license: String? = call.argument("license")
-      val ret = FaceSDK.setActivation(license);
-      result.success(ret)
+      try {
+        val license: String? = call.argument("license")
+        val ret = FaceSDK.setActivation(license)
+        result.success(ret)
+      } catch (t: Throwable) {
+        // -100: native .so failed to load (common on x86 emulators; SDK is ARM-only).
+        result.success(-100)
+      }
     } else if (call.method == "init") {
-      val ret = FaceSDK.init(context.assets)
-      result.success(ret)
+      try {
+        val ret = FaceSDK.init(context.assets)
+        result.success(ret)
+      } catch (t: Throwable) {
+        result.success(-100)
+      }
     } else if (call.method == "setParam") {
       val check_liveness_level: Int? = call.argument("check_liveness_level")
       if(check_liveness_level != null)

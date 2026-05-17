@@ -306,10 +306,37 @@ Attendance uses the **KBY Face SDK** (`facesdk_plugin`): templates are extracted
 
 ---
 
+## Client setup (Windows / first clone)
+
+Send this checklist to anyone cloning the repo:
+
+1. **Clone + dependencies**
+   ```bash
+   git clone https://github.com/hanepo/Attendance_Management.git
+   cd Attendance_Management
+   flutter pub get
+   ```
+2. **Firebase (required)** — download `google-services.json` from Firebase Console and place at `android/app/google-services.json` (not in Git).
+3. **Face SDK native libs** — after clone, confirm these exist (large files, ~35 MB):
+   `facesdk_plugin/android/libs/facesdk.aar` and `fotoapparat-2.7.0.aar`.
+4. **Run on a real phone (recommended)** — enable USB debugging, connect the phone, then:
+   ```bash
+   flutter devices
+   flutter run
+   ```
+5. **Do not use an x86 emulator** — the KBY SDK only includes **ARM** native libraries. An x86/x86_64 emulator often crashes with **“Lost connection to device”** / **Secure Attendance keeps stopping**. Use a **physical device** or an emulator with an **ARM64** system image.
+6. **First Android build is slow** — `Running Gradle task 'assembleDebug'...` for **5–15+ minutes** on first run is normal (Gradle downloads). Wait until you see `Built ... app-debug.apk`.
+7. **Release APK + face license** — if the app shows **activation code -2**, delete/rename `android/key.properties` and rebuild, **or** get a KBY release license (see troubleshooting row below).
+
+---
+
 ## Troubleshooting
 
 | Symptom | What to try |
 |---------|-------------|
+| **`Lost connection to device`** during `flutter run` | The app **crashed** (not Wi‑Fi). On Windows this is often an **x86 emulator** without ARM libs — use a **real phone** or **ARM64** emulator. Check `flutter run -v` / Android Studio Logcat for `UnsatisfiedLinkError` / `libfacesdk.so`. |
+| **`Secure Attendance keeps stopping`** | Same as above — native face SDK failed to load, or missing `google-services.json`. |
+| Gradle stuck / red `llvm-strip` notes then `Built app-debug.apk` | First build can take **10+ minutes**; red compiler **Notes** are usually harmless. If the app crashes on open, use a **physical ARM phone**. |
 | Build fails on Android | Ensure `google-services.json` is under `android/app/`. This project uses **minSdk 29** (Android 10+). |
 | iOS build / pod errors | `cd ios && pod install --repo-update`; open `.xcworkspace`; use a real device for camera. |
 | `flutter run` hangs on “Dart VM Service…” | Unlock the phone, trust the computer, disable VPN/proxy; rerun. Often succeeds on second run after install. |

@@ -92,6 +92,10 @@ class KbyFaceService {
     -3: 'License has expired.',
     -4: 'SDK not activated.',
     -5: 'SDK initialization error.',
+    -100:
+        'Native face library could not load. Use a real Android phone (ARM) or '
+        'an ARM64 emulator image — not an x86/x86_64 emulator. If the app '
+        'crashed with "Lost connection to device", this is usually the cause.',
   };
 
   /// Human-readable reason the SDK did not start (release signing / license, etc.).
@@ -115,7 +119,15 @@ class KbyFaceService {
       buf.writeln('Error: $lastInitException');
     }
     buf.writeln();
-    if (a == -2) {
+    if (a == -100) {
+      buf.writeln(
+        'Fix:\n'
+        '• Install on a **physical Android phone** (USB debugging), or\n'
+        '• Android Studio → Device Manager → create emulator with **ARM64** '
+        'system image (not x86).\n'
+        '• Then: flutter clean && flutter pub get && flutter run',
+      );
+    } else if (a == -2) {
       buf.writeln(
         'Fix options:\n'
         '• Client demo: build release **without** android/key.properties so the '

@@ -37,6 +37,17 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // KBY Face SDK ships ARM .so only (see facesdk_plugin/android/libs/facesdk.aar).
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // Avoid NDK 28 llvm-strip corrupting vendor .so on some Windows builds.
+            keepDebugSymbols += "**/*.so"
+        }
     }
 
     signingConfigs {
