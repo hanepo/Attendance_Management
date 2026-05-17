@@ -23,21 +23,64 @@ class FaceService {
   Future<List<double>?> extractEmbeddingFromFile(String path) async {
     await init();
     if (_interpreter == null) return null;
+
     try {
-      final inputImage = InputImage.fromFilePath(path);
-      final faces = await _detector!.processImage(inputImage);
+      final bytes = await File(path).readAsBytes();
+      final decoded = imglib.decodeImage(bytes);
+      if (decoded == null) return null;
+
+      final baked = imglib.bakeOrientation(decoded);
+      final attempts = <imglib.Image>[
+        baked,
+        decoded,
+        imglib.copyRotate(baked, angle: 90),
+        imglib.copyRotate(baked, angle: -90),
+      ];
+
+      for (final image in attempts) {
+        final embedding = await _embeddingFromOrientedImage(image);
+        if (embedding != null) return embedding;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<double>?> _embeddingFromOrientedImage(imglib.Image image) async {
+    final fileDetector = FaceDetector(
+      options: FaceDetectorOptions(
+        enableLandmarks: true,
+        enableClassification: false,
+        performanceMode: FaceDetectorMode.accurate,
+        minFaceSize: 0.05,
+      ),
+    );
+
+    File? temp;
+    try {
+      temp = File(
+        '${Directory.systemTemp.path}/face_cap_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      );
+      await temp.writeAsBytes(imglib.encodeJpg(image, quality: 92));
+
+      final faces = await fileDetector.processImage(
+        InputImage.fromFilePath(temp.path),
+      );
       if (faces.isEmpty) return null;
 
-      final bytes = await File(path).readAsBytes();
-      var image = imglib.decodeImage(bytes);
-      if (image == null) return null;
-      image = imglib.bakeOrientation(image);
-
+      faces.sort((a, b) {
+        final areaA = a.boundingBox.width * a.boundingBox.height;
+        final areaB = b.boundingBox.width * b.boundingBox.height;
+        return areaB.compareTo(areaA);
+      });
       final face = faces.first;
-      final x = (face.boundingBox.left - 10).clamp(0.0, image.width - 1.0);
-      final y = (face.boundingBox.top - 10).clamp(0.0, image.height - 1.0);
-      final w = (face.boundingBox.width + 20).clamp(1.0, image.width - x);
-      final h = (face.boundingBox.height + 20).clamp(1.0, image.height - y);
+      final box = face.boundingBox;
+      const pad = 0.25;
+      final x = (box.left - box.width * pad).clamp(0.0, image.width - 1.0);
+      final y = (box.top - box.height * pad).clamp(0.0, image.height - 1.0);
+      final w = (box.width * (1 + 2 * pad)).clamp(1.0, image.width - x);
+      final h = (box.height * (1 + 2 * pad)).clamp(1.0, image.height - y);
 
       var cropped = imglib.copyCrop(
         image,
@@ -63,6 +106,13 @@ class FaceService {
       return output[0];
     } catch (_) {
       return null;
+    } finally {
+      await fileDetector.close();
+      if (temp != null) {
+        try {
+          if (await temp.exists()) await temp.delete();
+        } catch (_) {}
+      }
     }
   }
 

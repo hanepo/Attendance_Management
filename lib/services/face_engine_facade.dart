@@ -28,6 +28,15 @@ class FaceEngineFacade {
   static Future<FaceCaptureOutcome?> extractFromPhoto(String imagePath) async {
     await prime();
 
+    // Demo path: on-device ML (works without KBY license).
+    final embedding = await FaceService().extractEmbeddingFromFile(imagePath);
+    if (embedding != null) {
+      return FaceCaptureOutcome(
+        storageJson: jsonEncode({'method': 'ml', 'embedding': embedding}),
+        usedKbySdk: false,
+      );
+    }
+
     if (isKbyActive) {
       final face = await KbyFaceService().extractFace(imagePath);
       if (face != null && face.passesSdkLiveness) {
@@ -38,13 +47,7 @@ class FaceEngineFacade {
       }
     }
 
-    final embedding = await FaceService().extractEmbeddingFromFile(imagePath);
-    if (embedding == null) return null;
-
-    return FaceCaptureOutcome(
-      storageJson: jsonEncode({'method': 'ml', 'embedding': embedding}),
-      usedKbySdk: false,
-    );
+    return null;
   }
 
   static Future<bool> verifyPhotoAgainstStored(

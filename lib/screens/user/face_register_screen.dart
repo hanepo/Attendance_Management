@@ -124,8 +124,17 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
       if (outcome == null) {
         setState(() {
           _processing = false;
-          _status = 'No face detected. Please centre your face and try again.';
+          _status =
+              'No face detected. Face the camera, good light, fill the oval, then capture again.';
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tip: remove glasses glare, move closer, brighter room, hold still after blink.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
         return;
       }
       setState(() => _status = 'Saving face data...');
