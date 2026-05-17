@@ -7,7 +7,7 @@ import '../../services/auth_service.dart';
 import '../../services/blink_liveness_service.dart';
 import '../../services/encryption_service.dart';
 import '../../services/face_service.dart';
-import '../../services/kby_face_service.dart';
+import '../../services/face_engine_facade.dart';
 import '../../utils/constants.dart';
 
 class FaceVerifyScreen extends StatefulWidget {
@@ -105,14 +105,6 @@ class _FaceVerifyScreenState extends State<FaceVerifyScreen>
         return;
       }
 
-      final storedTemplates = KbyFaceService.templatesFromJson(decrypted);
-      if (storedTemplates == null) {
-        if (!mounted) return;
-        await _showAlert('Please re-register your face (format updated).');
-        if (mounted) setState(() { _processing = false; _status = 'Position your face in the oval and tap Verify'; });
-        return;
-      }
-
       if (!mounted) return;
       setState(() => _status = 'Liveness: follow the on-screen steps');
 
@@ -141,33 +133,13 @@ class _FaceVerifyScreenState extends State<FaceVerifyScreen>
       final file = await _ctrl!.takePicture();
       if (mounted) setState(() => _status = 'Extracting face data...');
 
-      final currentFace = await KbyFaceService().extractFace(file.path);
-      if (currentFace == null) {
-        if (mounted) setState(() { _processing = false; _status = 'No face detected. Please centre your face and try again.'; });
-        return;
-      }
-      if (!currentFace.passesSdkLiveness) {
-        if (!mounted) return;
-        await _showAlert(
-          'Passive liveness failed (score ${currentFace.liveness.toStringAsFixed(2)}). '
-          'Use your real face with good lighting and try again.',
-        );
-        if (mounted) {
-          setState(() {
-            _processing = false;
-            _status = 'Position your face in the oval and tap Verify';
-          });
-        }
-        return;
-      }
-
       if (mounted) setState(() => _status = 'Matching face...');
-      final similarity = await KbyFaceService().compareFaces(
-        storedTemplates,
-        currentFace.templates,
+      final matched = await FaceEngineFacade.verifyPhotoAgainstStored(
+        decrypted,
+        file.path,
       );
 
-      if (similarity < KbyFaceService.matchThreshold) {
+      if (!matched) {
         if (!mounted) return;
         await _showAlert('Face verification failed.\n\nYour face does not match the registered face. Please try again.');
         if (mounted) setState(() { _processing = false; _status = 'Position your face in the oval and tap Verify'; });

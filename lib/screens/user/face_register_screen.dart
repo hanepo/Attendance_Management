@@ -4,7 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../services/auth_service.dart';
 import '../../services/blink_liveness_service.dart';
 import '../../services/face_service.dart';
-import '../../services/kby_face_service.dart';
+import '../../services/face_engine_facade.dart';
 import '../../utils/constants.dart';
 
 class FaceRegisterScreen extends StatefulWidget {
@@ -32,41 +32,8 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _primeFaceSdk();
+    FaceEngineFacade.prime();
     _startCamera();
-  }
-
-  Future<void> _primeFaceSdk() async {
-    await KbyFaceService().init();
-    if (!mounted) return;
-    if (KbyFaceService().isInitialized) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Face engine not available'),
-          content: SingleChildScrollView(
-            child: Text(KbyFaceService().describeInitFailure()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                KbyFaceService().resetSdkState();
-                Navigator.pop(ctx);
-                _primeFaceSdk();
-              },
-              child: const Text('Retry'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Dismiss'),
-            ),
-          ],
-        ),
-      );
-    });
   }
 
   @override
@@ -122,31 +89,6 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
 
   Future<void> _capture() async {
     if (_processing || !_cameraReady || _ctrl == null) return;
-    await KbyFaceService().init();
-    if (!KbyFaceService().isInitialized) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Face engine'),
-          content: Text(KbyFaceService().describeInitFailure()),
-          actions: [
-            TextButton(
-              onPressed: () {
-                KbyFaceService().resetSdkState();
-                Navigator.pop(ctx);
-              },
-              child: const Text('Reset'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
     setState(() {
       _processing = true;
       _status = 'Liveness: follow the on-screen steps';
@@ -178,60 +120,16 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen>
       setState(() => _status = 'Capturing face...');
       final file = await _ctrl!.takePicture();
       setState(() => _status = 'Extracting face data...');
-      final face = await KbyFaceService().extractFace(file.path);
-      if (face == null) {
-        final sdkReady = KbyFaceService().isInitialized;
+      final outcome = await FaceEngineFacade.extractFromPhoto(file.path);
+      if (outcome == null) {
         setState(() {
           _processing = false;
-          _status = sdkReady
-              ? 'No face detected. Please centre your face and try again.'
-              : 'Face SDK not ready — see message below.';
+          _status = 'No face detected. Please centre your face and try again.';
         });
-        if (!sdkReady && mounted) {
-          await showDialog<void>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Face engine'),
-              content: SingleChildScrollView(
-                child: Text(KbyFaceService().describeInitFailure()),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    KbyFaceService().resetSdkState();
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('Reset & try again'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-        }
-        return;
-      }
-      if (!face.passesSdkLiveness) {
-        if (!mounted) return;
-        setState(() {
-          _processing = false;
-          _status =
-              'Face liveness score too low. Use a live face (not a photo) and retry.';
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Passive liveness failed (score ${face.liveness.toStringAsFixed(2)}). '
-              'Try better lighting and face the camera directly.',
-            ),
-          ),
-        );
         return;
       }
       setState(() => _status = 'Saving face data...');
-      final faceJson = KbyFaceService.templatesToJson(face.templates);
+      final faceJson = outcome.storageJson;
       await AuthService().updateFaceData(faceJson);
       if (!mounted) return;
       setState(() { _processing = false; _status = 'Face registered!'; });

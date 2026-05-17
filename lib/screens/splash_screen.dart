@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/encryption_service.dart';
-import '../services/kby_face_service.dart';
+import '../services/face_engine_facade.dart';
 import '../utils/constants.dart';
 import 'admin/admin_face_2fa_screen.dart';
 import 'user/face_register_screen.dart';
@@ -38,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _init() async {
     EncryptionService().init();
-    await KbyFaceService().init();
+    await FaceEngineFacade.prime();
     await AuthService().init();
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;

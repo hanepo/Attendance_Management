@@ -7,7 +7,7 @@ import '../../services/blink_liveness_service.dart';
 import '../../services/database_service.dart';
 import '../../services/encryption_service.dart';
 import '../../services/face_service.dart';
-import '../../services/kby_face_service.dart';
+import '../../services/face_engine_facade.dart';
 import '../../utils/constants.dart';
 
 class FaceLoginScreen extends StatefulWidget {
@@ -142,75 +142,35 @@ class _FaceLoginScreenState extends State<FaceLoginScreen>
       final file = await _ctrl!.takePicture();
       if (mounted) setState(() => _status = 'Extracting face data...');
 
-      final currentFace = await KbyFaceService().extractFace(file.path);
-      if (currentFace == null) {
+      final liveCapture = await FaceEngineFacade.extractFromPhoto(file.path);
+      if (liveCapture == null) {
         if (mounted) setState(() { _processing = false; _status = 'No face detected. Please centre your face and try again.'; });
         return;
       }
-      if (!currentFace.passesSdkLiveness) {
-        if (!mounted) return;
-        await _showAlert(
-          'Passive liveness failed (score ${currentFace.liveness.toStringAsFixed(2)}). '
-          'Use your real face with good lighting and try again.',
-        );
-        if (mounted) {
-          setState(() {
-            _processing = false;
-            _status = 'Position your face in the oval and tap Scan';
-          });
-        }
-        return;
-      }
-
-      final currentTemplates = currentFace.templates;
 
       if (mounted) setState(() => _status = 'Searching for match...');
 
       final enc = EncryptionService();
-      double bestScore = -1.0;
-      double secondBest = -1.0;
       UserModel? matchedUser;
 
       for (final user in _usersWithFaces) {
         final decrypted = enc.decryptFaceData(user.faceData);
         if (decrypted == null || decrypted.isEmpty) continue;
 
-        final storedTemplates = KbyFaceService.templatesFromJson(decrypted);
-        if (storedTemplates == null) continue;
-
-        final similarity =
-            await KbyFaceService().compareFaces(storedTemplates, currentTemplates);
-        if (similarity > bestScore) {
-          secondBest = bestScore;
-          bestScore = similarity;
+        final ok = await FaceEngineFacade.verifyStoredAgainstCapture(
+          decrypted,
+          liveCapture,
+        );
+        if (ok) {
           matchedUser = user;
-        } else if (similarity > secondBest) {
-          secondBest = similarity;
+          break;
         }
       }
 
-      if (matchedUser == null || bestScore < KbyFaceService.matchThreshold) {
+      if (matchedUser == null) {
         if (!mounted) return;
         await _showAlert('Face not recognised.\n\nNo matching account found. Please login with email and password.');
         if (mounted) setState(() { _processing = false; _status = 'Position your face in the oval and tap Scan'; });
-        return;
-      }
-
-      final ambiguous = secondBest >= 0 &&
-          (bestScore - secondBest) < KbyFaceService.multiMatchMargin &&
-          secondBest >= KbyFaceService.matchThreshold * 0.88;
-      if (ambiguous) {
-        if (!mounted) return;
-        await _showAlert(
-          'Face match is ambiguous (several accounts look equally similar).\n\n'
-          'Please sign in with email and password.',
-        );
-        if (mounted) {
-          setState(() {
-            _processing = false;
-            _status = 'Position your face in the oval and tap Scan';
-          });
-        }
         return;
       }
 

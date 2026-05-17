@@ -28,7 +28,11 @@ IN THIS FOLDER (PowerShell or CMD):
   → First build can take 10–20 minutes. Wait until the app opens.
 
   Face error -101 = you used an emulator. Use a real phone only.
-  Face error -2 = wrong build or old app on phone:
+  Face: if KBY license fails (-2), the app automatically uses the built-in
+  on-device face model (MobileFaceNet) — no KBY key needed for demo.
+  Everyone must REGISTER FACE AGAIN after git pull if they registered before.
+
+  Face error -2 dialog (old builds only) = wrong build or old app on phone:
      powershell -ExecutionPolicy Bypass -File scripts\windows\verify-face-signing.ps1
      adb uninstall com.attendance.attendance_app
      flutter clean && flutter pub get && flutter run

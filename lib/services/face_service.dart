@@ -19,6 +19,53 @@ class FaceService {
 
   static const double threshold = 1.0;
 
+  /// Extracts a 192-d embedding from a saved photo (demo / fallback when KBY unavailable).
+  Future<List<double>?> extractEmbeddingFromFile(String path) async {
+    await init();
+    if (_interpreter == null) return null;
+    try {
+      final inputImage = InputImage.fromFilePath(path);
+      final faces = await _detector!.processImage(inputImage);
+      if (faces.isEmpty) return null;
+
+      final bytes = await File(path).readAsBytes();
+      var image = imglib.decodeImage(bytes);
+      if (image == null) return null;
+      image = imglib.bakeOrientation(image);
+
+      final face = faces.first;
+      final x = (face.boundingBox.left - 10).clamp(0.0, image.width - 1.0);
+      final y = (face.boundingBox.top - 10).clamp(0.0, image.height - 1.0);
+      final w = (face.boundingBox.width + 20).clamp(1.0, image.width - x);
+      final h = (face.boundingBox.height + 20).clamp(1.0, image.height - y);
+
+      var cropped = imglib.copyCrop(
+        image,
+        x: x.round(),
+        y: y.round(),
+        width: w.round(),
+        height: h.round(),
+      );
+      cropped = imglib.copyResizeCropSquare(cropped, size: 112);
+
+      final flat = _imageToFloat32(cropped, 112, 128, 128);
+      final input = [
+        List.generate(
+          112,
+          (i) => List.generate(112, (j) {
+            final base = (i * 112 + j) * 3;
+            return [flat[base], flat[base + 1], flat[base + 2]];
+          }),
+        ),
+      ];
+      final output = [List<double>.filled(192, 0.0)];
+      _interpreter!.run(input, output);
+      return output[0];
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> init() async {
     if (_initialized) return;
     _detector = FaceDetector(
