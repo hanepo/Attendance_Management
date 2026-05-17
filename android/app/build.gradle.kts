@@ -46,7 +46,8 @@ android {
 
     packaging {
         jniLibs {
-            // Avoid NDK 28 llvm-strip corrupting vendor .so on some Windows builds.
+            // Extract .so on install — helps Face SDK load on some ARM devices.
+            useLegacyPackaging = true
             keepDebugSymbols += "**/*.so"
         }
     }

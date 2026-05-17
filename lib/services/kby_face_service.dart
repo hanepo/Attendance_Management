@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:facesdk_plugin/facesdk_plugin.dart';
 import 'package:image/image.dart' as img;
 
@@ -93,10 +94,22 @@ class KbyFaceService {
     -4: 'SDK not activated.',
     -5: 'SDK initialization error.',
     -100:
-        'Native face library could not load. Use a real Android phone (ARM) or '
-        'an ARM64 emulator image — not an x86/x86_64 emulator. If the app '
-        'crashed with "Lost connection to device", this is usually the cause.',
+        'Native face library could not load on this device.',
+    -101:
+        'This is an Android emulator (x86). Face recognition cannot run here. '
+        'On Windows: build with your PC, but run on a real phone via USB.',
   };
+
+  /// True when running on an Android emulator (face SDK will not work).
+  static Future<bool> isAndroidEmulator() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final android = await DeviceInfoPlugin().androidInfo;
+      return !android.isPhysicalDevice;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Human-readable reason the SDK did not start (release signing / license, etc.).
   String describeInitFailure() {
@@ -119,13 +132,24 @@ class KbyFaceService {
       buf.writeln('Error: $lastInitException');
     }
     buf.writeln();
-    if (a == -100) {
+    if (a == -101) {
       buf.writeln(
-        'Fix:\n'
-        '• Install on a **physical Android phone** (USB debugging), or\n'
-        '• Android Studio → Device Manager → create emulator with **ARM64** '
-        'system image (not x86).\n'
-        '• Then: flutter clean && flutter pub get && flutter run',
+        'You are on an Android **emulator**. The KBY Face SDK has no x86 libraries.\n\n'
+        'On a Windows PC you **can** use Flutter, but the app must run on:\n'
+        '• A **physical Android phone** (USB cable + USB debugging), OR\n'
+        '• An ARM64 emulator image only (slow; phone is easier).\n\n'
+        'Steps:\n'
+        '1. Close the emulator in Android Studio\n'
+        '2. Plug in your phone, allow USB debugging\n'
+        '3. In PowerShell: flutter devices  (must show your phone, not emulator)\n'
+        '4. flutter run -d <your-phone-id>',
+      );
+    } else if (a == -100) {
+      buf.writeln(
+        'Native library failed on this device. Try:\n'
+        '• flutter clean && flutter pub get && flutter run\n'
+        '• Use a physical phone (not emulator)\n'
+        '• Reinstall the app',
       );
     } else if (a == -2) {
       buf.writeln(
@@ -150,7 +174,13 @@ class KbyFaceService {
   Future<void> init() async {
     if (_initialized) return;
     lastInitException = null;
+    lastActivationReturn = null;
+    lastInitReturn = null;
     try {
+      if (Platform.isAndroid && await isAndroidEmulator()) {
+        lastActivationReturn = -101;
+        return;
+      }
       final license = Platform.isAndroid ? _licenseAndroid() : _licenseIos();
       final activated = await _plugin.setActivation(license) ?? -1;
       lastActivationReturn = activated;
