@@ -1,15 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 abstract class FaceDetectionInterface {
   FaceDetectionInterface();
 
-  void onFaceDetected(faces) {
-    throw UnimplementedError('platformVersion() has not been implemented.');
+  void onFaceDetected(Object? faces) {
+    throw UnimplementedError('onFaceDetected() has not been implemented.');
   }
 }
 
