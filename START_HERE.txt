@@ -4,8 +4,14 @@
 
 BEFORE YOU START (one-time on your PC):
   1. Install Flutter: https://docs.flutter.dev/get-started/install/windows
-  2. Install Android Studio (Android SDK)
-  3. Run in PowerShell:  flutter doctor --android-licenses   (accept all)
+  2. Install Android Studio → open it → complete setup wizard (downloads SDK)
+  3. Android Studio → Settings → Languages & Frameworks → Android SDK
+     → SDK Tools tab → check "Android SDK Command-line Tools (latest)" → Apply
+  4. PowerShell (accept licenses — press y for each):
+       flutter doctor --android-licenses
+  5. Check:
+       flutter doctor
+     Android toolchain should show [√] not [!]
 
 PHONE (REQUIRED — face will NOT work on PC emulator):
   Windows is only for BUILDING the app. The app runs on your ANDROID PHONE.
