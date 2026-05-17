@@ -153,13 +153,15 @@ class KbyFaceService {
       );
     } else if (a == -2) {
       buf.writeln(
-        'Fix options:\n'
-        '• Client demo: build release **without** android/key.properties so the '
-        'APK stays **debug-signed** (same cert as flutter run), or\n'
-        '• Production: ask KBY AI for a license tied to applicationId '
-        'com.attendance.attendance_app and your **release** keystore SHA-1 '
-        '(or Play App Signing certificate), then rebuild with '
-        'KBY_LICENSE_ANDROID in --dart-define-from-file or --dart-define.',
+        'On the PC (PowerShell) in the project folder:\n'
+        '1. git pull\n'
+        '2. dir android\\team-debug.keystore   (must exist)\n'
+        '3. adb uninstall com.attendance.attendance_app\n'
+        '4. flutter clean && flutter pub get && flutter run\n'
+        '5. cd android && .\\gradlew signingReport\n'
+        '   Debug SHA-1 must be: 0E:9D:41:77:0C:34:3D:6C:E0:E7:D8:1B:43:81:08:77:8E:F7:3C:3F\n'
+        'If SHA-1 differs or -2 remains, email KBY (contact@kby-ai.com) for a '
+        'license for package com.attendance.attendance_app and that SHA-1.',
       );
     } else {
       buf.writeln(

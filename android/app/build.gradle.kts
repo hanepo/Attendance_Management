@@ -15,6 +15,12 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// KBY face license is bound to this keystore + applicationId (must exist in every clone).
+val teamKeystoreFile = rootProject.file("team-debug.keystore")
+check(teamKeystoreFile.exists()) {
+    "Missing ${teamKeystoreFile.absolutePath}. Run: git pull (need android/team-debug.keystore from GitHub)."
+}
+
 android {
     namespace = "com.attendance.attendance_app"
     compileSdk = flutter.compileSdkVersion
@@ -55,7 +61,7 @@ android {
     signingConfigs {
         // Same cert on every PC — required for bundled KBY face license (avoids activation -2).
         create("teamDebug") {
-            storeFile = rootProject.file("team-debug.keystore")
+            storeFile = teamKeystoreFile
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"

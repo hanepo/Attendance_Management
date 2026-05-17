@@ -28,9 +28,11 @@ IN THIS FOLDER (PowerShell or CMD):
   → First build can take 10–20 minutes. Wait until the app opens.
 
   Face error -101 = you used an emulator. Use a real phone only.
-  Face error -2 = old install or wrong signing — uninstall app, then:
+  Face error -2 = wrong build or old app on phone:
+     powershell -ExecutionPolicy Bypass -File scripts\windows\verify-face-signing.ps1
+     adb uninstall com.attendance.attendance_app
      flutter clean && flutter pub get && flutter run
-     (Project uses android/team-debug.keystore so face license matches on all PCs.)
+     (Needs android\team-debug.keystore from git — run git pull first.)
 
   If build asks for Android NDK 27: open Android Studio → SDK Manager → SDK Tools
   → check "NDK (Side by side)" version 27.0.12077973 → Apply.
