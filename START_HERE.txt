@@ -21,6 +21,9 @@ IN THIS FOLDER (PowerShell or CMD):
 
   → Pick your phone if asked. First build can take 10–20 minutes. Wait until the app opens.
 
+  If build asks for Android NDK 27: open Android Studio → SDK Manager → SDK Tools
+  → check "NDK (Side by side)" version 27.0.12077973 → Apply.
+
 TROUBLESHOOTING:
   - "flutter" not found → reinstall Flutter, open a NEW terminal
   - Lost connection / app keeps stopping → use a REAL phone, not x86 emulator

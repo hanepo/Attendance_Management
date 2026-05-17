@@ -18,8 +18,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.attendance.attendance_app"
     compileSdk = flutter.compileSdkVersion
-    // NDK 28 llvm-strip can corrupt vendor .so on Windows; 26.1 is stable for facesdk.aar.
-    ndkVersion = "26.1.10909125"
+    // Match Firebase / ML Kit plugins (required). keepDebugSymbols below protects face SDK .so.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
