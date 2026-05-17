@@ -4,6 +4,27 @@ Cross-platform **Flutter** mobile app (**iOS** & **Android**) for class attendan
 
 ---
 
+## Send to client (zip — 3 commands)
+
+1. **You:** create zip (includes Firebase + Face SDK files):
+   ```bash
+   # macOS
+   bash scripts/create-handoff-zip.sh
+   # Windows
+   powershell -ExecutionPolicy Bypass -File scripts\create-handoff-zip.ps1
+   ```
+   Sends `Attendance_Management-handoff.zip` (parent folder).
+
+2. **Client:** unzip → open **`START_HERE.txt`** → plug in **Android phone** (USB debugging) → in project folder:
+   ```text
+   flutter clean
+   flutter pub get
+   flutter run
+   ```
+   No `google-services.json` download, no extra scripts required. First build ~10–20 min on Windows.
+
+---
+
 ## Table of contents
 
 1. [What this app does](#what-this-app-does)

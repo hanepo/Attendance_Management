@@ -1,0 +1,30 @@
+================================================================================
+  SECURE ATTENDANCE — Run on Android (Windows)
+================================================================================
+
+BEFORE YOU START (one-time on your PC):
+  1. Install Flutter: https://docs.flutter.dev/get-started/install/windows
+  2. Install Android Studio (Android SDK)
+  3. Run in PowerShell:  flutter doctor --android-licenses   (accept all)
+
+PHONE:
+  1. Settings → Developer options → USB debugging ON
+  2. Connect phone with USB cable
+  3. On phone, tap Allow / Trust this computer
+  4. CLOSE any Android emulator (Android Studio → no emulator running)
+
+IN THIS FOLDER (PowerShell or CMD):
+
+  flutter clean
+  flutter pub get
+  flutter run
+
+  → Pick your phone if asked. First build can take 10–20 minutes. Wait until the app opens.
+
+TROUBLESHOOTING:
+  - "flutter" not found → reinstall Flutter, open a NEW terminal
+  - Lost connection / app keeps stopping → use a REAL phone, not x86 emulator
+  - No device listed → install phone USB driver; try another cable
+  - Face "activation -2" → delete android\key.properties if you created one, run again
+
+================================================================================

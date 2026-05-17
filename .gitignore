@@ -52,10 +52,5 @@ android/*.keystore
 # Local compile-time AES secrets (generated; never commit)
 dart_define.secrets.json
 
-# Firebase secrets (never commit real keys — use Firebase Console downloads + README setup)
-**/google-services.json
+# iOS Firebase plist (optional; Android uses android/app/google-services.json in repo)
 **/GoogleService-Info.plist
-
-# Optional: regenerate with FlutterFire CLI instead of committing
-# Uncomment if your team prefers not committing generated options:
-# lib/firebase_options.dart

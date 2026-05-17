@@ -1,6 +1,8 @@
 # Windows setup — Secure Attendance
 
-Use this guide on **Windows 10/11** (PowerShell or Command Prompt). iOS builds require a Mac; on Windows you build and run **Android only**.
+**Simplest path:** open **`START_HERE.txt`** in the project folder — three commands: `flutter clean`, `flutter pub get`, `flutter run`.
+
+This file has extra detail if something fails. iOS builds require a Mac; on Windows you build and run **Android only**.
 
 ---
 
