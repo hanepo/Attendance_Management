@@ -72,53 +72,61 @@ class FacesdkPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
         FaceDetectionFlutterView.livenessDetectionLevel = check_liveness_level!!
       result.success(0)
     } else if (call.method == "extractFaces") {
-      val imagePath: String? = call.argument("imagePath")
+      try {
+        val imagePath: String? = call.argument("imagePath")
 
-      val bitmap: Bitmap? = BitmapFactory.decodeFile(imagePath)
-      if (bitmap == null) {
-        result.success(ArrayList<HashMap<String, Any>>())
-        return
-      }
-      val param = FaceDetectionParam()
-      param.check_liveness = true
-      param.check_liveness_level = FaceDetectionFlutterView.livenessDetectionLevel
-
-      val faceBoxes: List<FaceBox>? = FaceSDK.faceDetection(bitmap, param)
-
-      val faceBoxesMap: ArrayList<HashMap<String, Any>> = ArrayList<HashMap<String, Any>>()
-      if(!faceBoxes.isNullOrEmpty()) {
-        for(face in faceBoxes!!) {
-          val faceImage = Utils.cropFace(bitmap, face)
-          val templates = FaceSDK.templateExtraction(bitmap, face)
-
-          val byteArrayOutputStream = ByteArrayOutputStream()
-          faceImage.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
-          val faceJpg: ByteArray = byteArrayOutputStream.toByteArray()
-
-          val e: HashMap<String, Any> = HashMap<String, Any>()
-          e.put("x1", face.x1);
-          e.put("y1", face.y1);
-          e.put("x2", face.x2);
-          e.put("y2", face.y2);
-          e.put("liveness", face.liveness);
-          e.put("yaw", face.yaw);
-          e.put("roll", face.roll);
-          e.put("pitch", face.pitch);
-          e.put("templates", templates);
-          e.put("faceJpg", faceJpg);
-          e.put("frameWidth", bitmap.width);
-          e.put("frameHeight", bitmap.height);
-          faceBoxesMap.add(e)
+        val bitmap: Bitmap? = BitmapFactory.decodeFile(imagePath)
+        if (bitmap == null) {
+          result.success(ArrayList<HashMap<String, Any>>())
+          return
         }
+        val param = FaceDetectionParam()
+        param.check_liveness = true
+        param.check_liveness_level = FaceDetectionFlutterView.livenessDetectionLevel
+
+        val faceBoxes: List<FaceBox>? = FaceSDK.faceDetection(bitmap, param)
+
+        val faceBoxesMap: ArrayList<HashMap<String, Any>> = ArrayList<HashMap<String, Any>>()
+        if(!faceBoxes.isNullOrEmpty()) {
+          for(face in faceBoxes!!) {
+            val faceImage = Utils.cropFace(bitmap, face)
+            val templates = FaceSDK.templateExtraction(bitmap, face)
+
+            val byteArrayOutputStream = ByteArrayOutputStream()
+            faceImage.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
+            val faceJpg: ByteArray = byteArrayOutputStream.toByteArray()
+
+            val e: HashMap<String, Any> = HashMap<String, Any>()
+            e.put("x1", face.x1);
+            e.put("y1", face.y1);
+            e.put("x2", face.x2);
+            e.put("y2", face.y2);
+            e.put("liveness", face.liveness);
+            e.put("yaw", face.yaw);
+            e.put("roll", face.roll);
+            e.put("pitch", face.pitch);
+            e.put("templates", templates);
+            e.put("faceJpg", faceJpg);
+            e.put("frameWidth", bitmap.width);
+            e.put("frameHeight", bitmap.height);
+            faceBoxesMap.add(e)
+          }
+        }
+
+        result.success(faceBoxesMap)
+      } catch (t: Throwable) {
+        result.success(ArrayList<HashMap<String, Any>>())
       }
-
-      result.success(faceBoxesMap)
     } else if (call.method == "similarityCalculation") {
-      val templates1: ByteArray? = call.argument("templates1")
-      val templates2: ByteArray? = call.argument("templates2")
+      try {
+        val templates1: ByteArray? = call.argument("templates1")
+        val templates2: ByteArray? = call.argument("templates2")
 
-      val similarity: Float = FaceSDK.similarityCalculation(templates1!!, templates2!!)
-      result.success(similarity)
+        val similarity: Float = FaceSDK.similarityCalculation(templates1!!, templates2!!)
+        result.success(similarity)
+      } catch (t: Throwable) {
+        result.success(0.0)
+      }
     } else {
       result.notImplemented()
     }

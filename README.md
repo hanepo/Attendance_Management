@@ -11,7 +11,7 @@ Cross-platform **Flutter** mobile app (**iOS** & **Android**) for class attendan
 3. [Tech stack](#tech-stack)
 4. [Prerequisites](#prerequisites)
 5. [Firebase setup (required)](#firebase-setup-required)
-6. [Install & run on your machine](#install--run-on-your-machine)
+6. [Install & run on your machine](#install--run-on-your-machine) — **Windows:** see [SETUP_WINDOWS.md](SETUP_WINDOWS.md)
 7. [Building release binaries](#building-release-binaries)
 8. [First-time usage walkthrough](#first-time-usage-walkthrough)
 9. [Where things live in the code](#where-things-live-in-the-code)
@@ -306,27 +306,27 @@ Attendance uses the **KBY Face SDK** (`facesdk_plugin`): templates are extracted
 
 ---
 
-## Client setup (Windows / first clone)
+## Windows clients (read this first)
 
-Send this checklist to anyone cloning the repo:
+Full step-by-step guide: **[SETUP_WINDOWS.md](SETUP_WINDOWS.md)**
 
-1. **Clone + dependencies**
-   ```bash
-   git clone https://github.com/hanepo/Attendance_Management.git
-   cd Attendance_Management
-   flutter pub get
-   ```
-2. **Firebase (required)** — download `google-services.json` from Firebase Console and place at `android/app/google-services.json` (not in Git).
-3. **Face SDK native libs** — after clone, confirm these exist (large files, ~35 MB):
-   `facesdk_plugin/android/libs/facesdk.aar` and `fotoapparat-2.7.0.aar`.
-4. **Run on a real phone (recommended)** — enable USB debugging, connect the phone, then:
-   ```bash
-   flutter devices
-   flutter run
-   ```
-5. **Do not use an x86 emulator** — the KBY SDK only includes **ARM** native libraries. An x86/x86_64 emulator often crashes with **“Lost connection to device”** / **Secure Attendance keeps stopping**. Use a **physical device** or an emulator with an **ARM64** system image.
-6. **First Android build is slow** — `Running Gradle task 'assembleDebug'...` for **5–15+ minutes** on first run is normal (Gradle downloads). Wait until you see `Built ... app-debug.apk`.
-7. **Release APK + face license** — if the app shows **activation code -2**, delete/rename `android/key.properties` and rebuild, **or** get a KBY release license (see troubleshooting row below).
+Quick start on **Windows** (PowerShell, project folder):
+
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\check-setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\run-on-phone.ps1
+```
+
+Or double-click **`scripts\windows\check-setup.cmd`** then **`run-on-phone.cmd`**.
+
+| Script | Purpose |
+|--------|---------|
+| `scripts\windows\check-setup.ps1` | Verify Flutter, AAR files, `google-services.json` |
+| `scripts\windows\run-on-phone.ps1` | `flutter run` on USB-connected phone |
+| `scripts\windows\build-demo-apk.ps1` | Release APK with **debug signing** (face license works) |
+
+**Rules for Windows:** use a **physical Android phone** (not x86 emulator), add **`android\app\google-services.json`**, first Gradle build may take **10–20 minutes**.
 
 ---
 
