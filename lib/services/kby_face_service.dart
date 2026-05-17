@@ -87,9 +87,8 @@ class KbyFaceService {
   static const Map<int, String> activationErrorDescriptions = {
     -1: 'Invalid or corrupt license key.',
     -2:
-        'License does not match this app’s package name and/or signing '
-        'certificate. Pull latest code (uses android/team-debug.keystore), '
-        'uninstall the app, then flutter clean && flutter pub get && flutter run.',
+        'SDK_LICENSE_APPID_ERROR: the bundled license is not registered for '
+        'package com.attendance.attendance_app (signing cert may already be correct).',
     -3: 'License has expired.',
     -4: 'SDK not activated.',
     -5: 'SDK initialization error.',
@@ -153,15 +152,15 @@ class KbyFaceService {
       );
     } else if (a == -2) {
       buf.writeln(
-        'On the PC (PowerShell) in the project folder:\n'
-        '1. git pull\n'
-        '2. dir android\\team-debug.keystore   (must exist)\n'
-        '3. adb uninstall com.attendance.attendance_app\n'
-        '4. flutter clean && flutter pub get && flutter run\n'
-        '5. cd android && .\\gradlew signingReport\n'
-        '   Debug SHA-1 must be: 0E:9D:41:77:0C:34:3D:6C:E0:E7:D8:1B:43:81:08:77:8E:F7:3C:3F\n'
-        'If SHA-1 differs or -2 remains, email KBY (contact@kby-ai.com) for a '
-        'license for package com.attendance.attendance_app and that SHA-1.',
+        'Your signing certificate is OK if SHA-1 is\n'
+        '0E:9D:41:77:0C:34:3D:6C:E0:E7:D8:1B:43:81:08:77:8E:F7:3C:3F\n'
+        '(team-debug.keystore). This error means the KBY license string in the '
+        'app was issued for a different package name, not '
+        'com.attendance.attendance_app.\n\n'
+        'Fix: request a new license from KBY (contact@kby-ai.com). See '
+        'KBY_LICENSE_REQUEST.txt in the project.\n\n'
+        'After you receive the key, rebuild:\n'
+        'flutter run --dart-define=KBY_LICENSE_ANDROID=YOUR_NEW_KEY',
       );
     } else {
       buf.writeln(

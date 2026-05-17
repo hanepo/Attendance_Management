@@ -1,0 +1,20 @@
+Copy this email to KBY AI to fix face activation error -2.
+
+To: contact@kby-ai.com
+Subject: Android license for com.attendance.attendance_app
+
+Hello,
+
+We use the KBY Face SDK in a Flutter app and get activation code -2
+(SDK_LICENSE_APPID_ERROR) on Android.
+
+Please issue an Android license for:
+
+  Package name: com.attendance.attendance_app
+  SHA-1: 0E:9D:41:77:0C:34:3D:6C:E0:E7:D8:1B:43:81:08:77:8E:F7:3C:3F
+
+After we receive the license string, we will build with:
+
+  flutter build apk --release --dart-define=KBY_LICENSE_ANDROID=PASTE_LICENSE_HERE
+
+Thank you.
