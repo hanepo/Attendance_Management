@@ -53,6 +53,13 @@ android {
     }
 
     signingConfigs {
+        // Same cert on every PC — required for bundled KBY face license (avoids activation -2).
+        create("teamDebug") {
+            storeFile = rootProject.file("team-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (keystorePropertiesFile.exists()) {
             create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String
@@ -64,12 +71,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("teamDebug")
+        }
         release {
-            // MobSF: ship with a release keystore when android/key.properties exists.
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                signingConfigs.getByName("teamDebug")
             }
         }
     }

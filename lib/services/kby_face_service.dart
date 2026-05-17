@@ -88,8 +88,8 @@ class KbyFaceService {
     -1: 'Invalid or corrupt license key.',
     -2:
         'License does not match this app’s package name and/or signing '
-        'certificate (typical when the APK is release-signed with your own '
-        'keystore while the bundled license was issued for debug signing).',
+        'certificate. Pull latest code (uses android/team-debug.keystore), '
+        'uninstall the app, then flutter clean && flutter pub get && flutter run.',
     -3: 'License has expired.',
     -4: 'SDK not activated.',
     -5: 'SDK initialization error.',

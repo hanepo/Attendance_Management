@@ -48,6 +48,8 @@ app.*.map.json
 android/key.properties
 android/*.jks
 android/*.keystore
+# Shared debug cert so KBY face license works on every developer PC (handoff).
+!android/team-debug.keystore
 
 # Local compile-time AES secrets (generated; never commit)
 dart_define.secrets.json
